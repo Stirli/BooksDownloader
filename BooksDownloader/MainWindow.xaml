@@ -22,8 +22,8 @@
                 <ColumnDefinition/>
                 <ColumnDefinition/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding Show}"></TextBlock>
-            <TextBlock Grid.Column="1" Text="{Binding ConsoleLog}"></TextBlock>
+            <TextBox IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Visible" Text="{Binding Show}"></TextBox>
+            <TextBox IsReadOnly="True" VerticalScrollBarVisibility="Visible" Grid.Column="1" Text="{Binding ConsoleLog}"/>
         </Grid>
         
     </DockPanel>

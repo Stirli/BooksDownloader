@@ -1,5 +1,8 @@
 ﻿using AngleSharp;
+using AngleSharp.Css;
+using AngleSharp.Css.RenderTree;
 using AngleSharp.Dom;
+using AngleSharp.Io;
 using AngleSharp.Js;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
@@ -32,15 +35,39 @@ namespace BooksDownloader.ViewModels.MainWindow
 
         private async Task DownloadExecute()
         {
-            var config = Configuration.Default.WithDefaultLoader().WithJs();
+            LoaderOptions lo = new LoaderOptions();
+            
+            lo.IsResourceLoadingEnabled = true;
+            lo.Filter = request => request.Address.Host.Contains("litnet.com");
+            var config = Configuration.Default
+                                      .WithJs()
+                                      .WithCss()
+                                      .WithRenderDevice(new DefaultRenderDevice
+                                      {
+                                          DeviceHeight = 768,
+                                          DeviceWidth = 1024,
+                                      })
+                                      .WithEventLoop()
+                                      .WithDefaultCookies()
+                                      .WithDefaultLoader(lo);
             var context = BrowsingContext.New(config);
             document = await context.OpenAsync(Path.ToString()).WaitUntilAvailable();
+
             var divSelector = ".book-id ~ div:nth-of-type(2)";
             var bookTitleSelector = ".book-heading";
             var div = document.QuerySelector(divSelector);
             var title = div.QuerySelector(bookTitleSelector);
-            var last = div.QuerySelector(".reader-pagination");
-            Show = $"{title.TextContent} {last}";
+
+            await UpdateTextAsync(div);
+        }
+
+        private async Task UpdateTextAsync(IElement div)
+        {
+            var tree = document.DefaultView.Render();
+            var node = tree.Find(div);
+            await node.DownloadResources();
+            var last = div.QuerySelector(".reader-text");
+            Show = $"{last?.TextContent}";
         }
 
         private string consoleCommand;
@@ -51,7 +78,7 @@ namespace BooksDownloader.ViewModels.MainWindow
 
         public string ConsoleLog { get => consoleLog; set => SetProperty(ref consoleLog, value); }
 
-        private RelayCommand sendConsoleCommand;
+        private AsyncRelayCommand sendConsoleCommand;
         private AngleSharp.Dom.IDocument document;
 
         public ICommand SendConsoleCommand
@@ -60,19 +87,20 @@ namespace BooksDownloader.ViewModels.MainWindow
             {
                 if (sendConsoleCommand == null)
                 {
-                    sendConsoleCommand = new RelayCommand(SendConsole);
+                    sendConsoleCommand = new AsyncRelayCommand(SendConsoleAsync);
                 }
 
                 return sendConsoleCommand;
             }
         }
 
-        private void SendConsole()
+        private async Task SendConsoleAsync()
         {
             object result = null;
             try
             {
-                result= document.ExecuteScript(ConsoleCommand);
+                result = document.ExecuteScript(ConsoleCommand);
+                await UpdateTextAsync(document.Body);
             }
             catch (Exception ex)
             {
